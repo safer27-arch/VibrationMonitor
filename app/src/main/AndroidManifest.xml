@@ -7,7 +7,7 @@
     <application
         android:allowBackup="true"
         android:label="Vibration Monitor"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        android:theme="@android:style/Theme.Material.Light.NoActionBar">
 
         <activity
             android:name=".MainActivity"
