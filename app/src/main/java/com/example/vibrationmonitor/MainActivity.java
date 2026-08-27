@@ -53,6 +53,10 @@ public class MainActivity extends Activity implements SensorEventListener {
     private final ArrayList<DataPoint> eventBuffer = new ArrayList<>();
 
     private boolean eventRecording = false;
+
+                java.util.ArrayList<Float> csvValues = new java.util.ArrayList<>();
+                for (DataPoint dp : eventBuffer) csvValues.add((float) dp.value);
+                java.io.File csvFile = CsvSaver.save(this, csvValues);
     private long eventStartMs = 0;
     private int eventCount = 0;
 
