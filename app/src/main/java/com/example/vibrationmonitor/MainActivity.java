@@ -675,7 +675,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         box.addView(info);
 
         VibrationGraph csvGraph = new VibrationGraph(this);
-        csvGraph.setThreshold(threshold);
+        csvGraph.setThreshold(getThreshold());
 
         for (double v : data) {
             csvGraph.addValue(v);
