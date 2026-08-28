@@ -177,7 +177,7 @@ public class MainActivity extends Activity implements SensorEventListener {
                 return;
             }
             java.util.Collections.sort(names, java.util.Collections.reverseOrder());
-            new android.app.AlertDialog.Builder(this).setTitle("저장된 CSV 파일").setItems(names.toArray(new String[0]), null).setNegativeButton("닫기", null).show();
+            new android.app.AlertDialog.Builder(this).setTitle("저장된 CSV 파일").setItems(names.toArray(new String[0]), (dialog, which) -> showCsvGraph(new java.io.File(dir, names.get(which)))).setNegativeButton("닫기", null).show();
         });
 
         startButton.setOnClickListener(
@@ -218,6 +218,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(stopButton);
         root.addView(resetButton);
         root.addView(csvButton);
+        root.setPadding(root.getPaddingLeft(), root.getPaddingTop(), root.getPaddingRight(), (int)(100 * getResources().getDisplayMetrics().density));
 
         scroll.addView(root);
         setContentView(scroll);
@@ -598,6 +599,106 @@ public class MainActivity extends Activity implements SensorEventListener {
     /*
      * 실시간 그래프
      */
+
+    private void showCsvGraph(java.io.File file) {
+        java.util.ArrayList<Double> data = new java.util.ArrayList<>();
+
+        try {
+            java.io.BufferedReader br =
+                    new java.io.BufferedReader(new java.io.FileReader(file));
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] a = line.split(",");
+                if (a.length >= 2) {
+                    try {
+                        data.add(Double.parseDouble(a[1].trim()));
+                    } catch (Exception ignored) {}
+                }
+            }
+            br.close();
+        } catch (Exception e) {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle("CSV 읽기 오류")
+                    .setMessage(e.getMessage())
+                    .setPositiveButton("확인", null)
+                    .show();
+            return;
+        }
+
+        if (data.isEmpty()) {
+            new android.app.AlertDialog.Builder(this)
+                    .setTitle(file.getName())
+                    .setMessage("표시할 데이터가 없습니다.")
+                    .setPositiveButton("확인", null)
+                    .show();
+            return;
+        }
+
+        double sum = 0;
+        double max = -Double.MAX_VALUE;
+        double min = Double.MAX_VALUE;
+
+        for (double v : data) {
+            sum += v;
+            if (v > max) max = v;
+            if (v < min) min = v;
+        }
+
+        double avg = sum / data.size();
+
+        android.widget.LinearLayout box =
+                new android.widget.LinearLayout(this);
+        box.setOrientation(android.widget.LinearLayout.VERTICAL);
+
+        int pad = (int)(16 * getResources().getDisplayMetrics().density);
+        box.setPadding(pad, pad, pad, pad);
+
+        android.widget.TextView info =
+                new android.widget.TextView(this);
+
+        info.setText(
+                "파일 : " + file.getName() +
+                "\n데이터 수 : " + data.size() + "개" +
+                String.format(java.util.Locale.US,
+                        "\n평균값 : %.3f m/s²", avg) +
+                String.format(java.util.Locale.US,
+                        "\n최대값 : %.3f m/s²", max) +
+                String.format(java.util.Locale.US,
+                        "\n최소값 : %.3f m/s²", min) +
+                String.format(java.util.Locale.US,
+                        "\nSPEC : %.2f m/s²", threshold)
+        );
+
+        info.setTextSize(17);
+        info.setPadding(0, 0, 0, pad);
+        box.addView(info);
+
+        VibrationGraph csvGraph = new VibrationGraph(this);
+        csvGraph.setThreshold(threshold);
+
+        for (double v : data) {
+            csvGraph.addValue(v);
+        }
+
+        int h = (int)(300 * getResources().getDisplayMetrics().density);
+
+        csvGraph.setLayoutParams(
+                new android.widget.LinearLayout.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        h
+                )
+        );
+
+        box.addView(csvGraph);
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("저장 진동 데이터")
+                .setView(box)
+                .setPositiveButton("닫기", null)
+                .show();
+    }
+
     static class VibrationGraph extends View {
 
         private final ArrayList<Double> values =
