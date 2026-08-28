@@ -161,6 +161,25 @@ public class MainActivity extends Activity implements SensorEventListener {
         Button resetButton = new Button(this);
         resetButton.setText("값 초기화");
 
+        Button csvButton = new Button(this);
+        csvButton.setText("저장된 CSV 파일");
+        csvButton.setOnClickListener(v -> {
+            java.io.File dir = new java.io.File(getExternalFilesDir(null), "VibrationData");
+            java.io.File[] files = dir.listFiles();
+            if (files == null || files.length == 0) {
+                new android.app.AlertDialog.Builder(this).setTitle("저장된 CSV 파일").setMessage("저장된 CSV 파일이 없습니다.").setPositiveButton("확인", null).show();
+                return;
+            }
+            java.util.ArrayList<String> names = new java.util.ArrayList<>();
+            for (java.io.File f : files) if (f.getName().endsWith(".csv")) names.add(f.getName());
+            if (names.isEmpty()) {
+                new android.app.AlertDialog.Builder(this).setTitle("저장된 CSV 파일").setMessage("저장된 CSV 파일이 없습니다.").setPositiveButton("확인", null).show();
+                return;
+            }
+            java.util.Collections.sort(names, java.util.Collections.reverseOrder());
+            new android.app.AlertDialog.Builder(this).setTitle("저장된 CSV 파일").setItems(names.toArray(new String[0]), null).setNegativeButton("닫기", null).show();
+        });
+
         startButton.setOnClickListener(
                 v -> startMeasurement()
         );
@@ -198,6 +217,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(startButton);
         root.addView(stopButton);
         root.addView(resetButton);
+        root.addView(csvButton);
 
         scroll.addView(root);
         setContentView(scroll);
