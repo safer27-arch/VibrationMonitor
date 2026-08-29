@@ -20,6 +20,10 @@ public class HistoryActivity extends Activity {
         ArrayList<Double> values = new ArrayList<>();
         double avg, max, min, over;
         String dateText;
+
+        double latitude;
+        double longitude;
+        boolean hasLocation;
     }
 
     @Override
@@ -183,7 +187,64 @@ public class HistoryActivity extends Activity {
         e.over = Math.max(0, e.max - spec);
         e.dateText = formatFileDate(f);
 
+        readGpsData(e);
+
         return e;
+    }
+
+    private void readGpsData(EventStat e) {
+
+        File gpsFile = new File(
+                e.file.getParentFile(),
+                e.file.getName().replace(".csv", ".gps")
+        );
+
+        if (!gpsFile.exists()) {
+            e.hasLocation = false;
+            return;
+        }
+
+        Double lat = null;
+        Double lon = null;
+
+        try (BufferedReader br =
+                     new BufferedReader(new FileReader(gpsFile))) {
+
+            String line;
+
+            while ((line = br.readLine()) != null) {
+
+                line = line.trim();
+
+                if (line.startsWith("latitude=")) {
+                    String value =
+                            line.substring("latitude=".length()).trim();
+
+                    if (!value.isEmpty()) {
+                        lat = Double.parseDouble(value);
+                    }
+                }
+
+                if (line.startsWith("longitude=")) {
+                    String value =
+                            line.substring("longitude=".length()).trim();
+
+                    if (!value.isEmpty()) {
+                        lon = Double.parseDouble(value);
+                    }
+                }
+            }
+
+        } catch (Exception ignored) {
+            e.hasLocation = false;
+            return;
+        }
+
+        if (lat != null && lon != null) {
+            e.latitude = lat;
+            e.longitude = lon;
+            e.hasLocation = true;
+        }
     }
 
     private String formatFileDate(File f) {
@@ -224,7 +285,13 @@ public class HistoryActivity extends Activity {
                 String.format(Locale.US,
                         "\n현재 SPEC : %.2f m/s²", spec) +
                 String.format(Locale.US,
-                        "\nSPEC 초과량 : %.3f m/s²", e.over)
+                        "\nSPEC 초과량 : %.3f m/s²", e.over) +
+                (e.hasLocation
+                        ? String.format(Locale.US,
+                            "\nGPS 위치 : %.6f, %.6f",
+                            e.latitude,
+                            e.longitude)
+                        : "\nGPS 위치 : 기록 없음")
         );
 
         info.setTextSize(16);
