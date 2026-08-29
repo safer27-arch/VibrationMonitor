@@ -36,6 +36,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     private TextView alarmText;
     private TextView eventText;
     private TextView locationText;
+    private TextView cameraText;
 
     private android.location.LocationManager locationManager;
     private android.location.LocationListener locationListener;
@@ -130,6 +131,13 @@ public class MainActivity extends Activity implements SensorEventListener {
         locationText.setGravity(Gravity.CENTER);
         locationText.setTextColor(Color.DKGRAY);
         locationText.setPadding(0, 4, 0, 10);
+
+        cameraText = new TextView(this);
+        cameraText.setText("카메라 : 준비 중...");
+        cameraText.setTextSize(15);
+        cameraText.setGravity(Gravity.CENTER);
+        cameraText.setTextColor(Color.DKGRAY);
+        cameraText.setPadding(0, 2, 0, 10);
 
         // 실시간 그래프
         graph = new VibrationGraph(this);
@@ -263,12 +271,13 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(title);
         root.addView(sensorStatus);
         root.addView(locationText);
+        root.addView(cameraText);
 
         // 그래프가 제목 바로 아래 보이도록 순서 조정
         root.removeView(graph);
         root.addView(
                 graph,
-                3,
+                4,
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         600
@@ -306,6 +315,8 @@ public class MainActivity extends Activity implements SensorEventListener {
                         android.Manifest.permission.CAMERA
                 ) != android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
+            cameraText.setText("카메라 : 권한 필요");
+
             requestPermissions(
                     new String[] {
                             android.Manifest.permission.CAMERA
@@ -338,6 +349,10 @@ public class MainActivity extends Activity implements SensorEventListener {
     private void openEventCamera() {
 
         if (cameraDevice != null) return;
+
+        runOnUiThread(() ->
+                cameraText.setText("카메라 : 준비 중...")
+        );
 
         startCameraThread();
 
@@ -460,9 +475,35 @@ public class MainActivity extends Activity implements SensorEventListener {
                                             )
                             ) {
                                 out.write(bytes);
+                                out.flush();
                             }
 
-                        } catch (Exception ignored) {
+                            final java.io.File savedPhoto =
+                                    photoCaptureTarget;
+
+                            runOnUiThread(() -> {
+                                if (
+                                        savedPhoto != null &&
+                                        savedPhoto.exists() &&
+                                        savedPhoto.length() > 0
+                                ) {
+                                    cameraText.setText(
+                                            "카메라 : 촬영 완료"
+                                    );
+                                } else {
+                                    cameraText.setText(
+                                            "카메라 : 파일 저장 실패"
+                                    );
+                                }
+                            });
+
+                        } catch (Exception e) {
+
+                            runOnUiThread(() ->
+                                    cameraText.setText(
+                                            "카메라 : 파일 저장 오류"
+                                    )
+                            );
 
                         } finally {
 
@@ -518,6 +559,12 @@ public class MainActivity extends Activity implements SensorEventListener {
                                             ) {
                                                 cameraSession = session;
                                                 cameraReady = true;
+
+                                                runOnUiThread(() ->
+                                                        cameraText.setText(
+                                                                "카메라 : 준비 완료"
+                                                        )
+                                                );
                                             }
 
                                             @Override
@@ -527,6 +574,12 @@ public class MainActivity extends Activity implements SensorEventListener {
                                                             session
                                             ) {
                                                 cameraReady = false;
+
+                                                runOnUiThread(() ->
+                                                        cameraText.setText(
+                                                                "카메라 : 준비 실패"
+                                                        )
+                                                );
                                             }
                                         },
                                         cameraHandler
@@ -565,8 +618,10 @@ public class MainActivity extends Activity implements SensorEventListener {
     }
 
     private void captureEventPhoto() {
+        captureEventPhotoWithRetry(0);
+    }
 
-        eventPhotoFileName = null;
+    private void captureEventPhotoWithRetry(int retry) {
 
         if (
                 !cameraReady ||
@@ -574,6 +629,35 @@ public class MainActivity extends Activity implements SensorEventListener {
                 cameraSession == null ||
                 imageReader == null
         ) {
+
+            runOnUiThread(() ->
+                    cameraText.setText(
+                            "카메라 : 촬영 준비 대기..."
+                    )
+            );
+
+            if (retry < 10) {
+
+                if (cameraHandler == null) {
+                    openEventCamera();
+                }
+
+                new android.os.Handler(
+                        android.os.Looper.getMainLooper()
+                ).postDelayed(
+                        () -> captureEventPhotoWithRetry(retry + 1),
+                        300
+                );
+
+            } else {
+
+                runOnUiThread(() ->
+                        cameraText.setText(
+                                "카메라 : 촬영 실패(준비 안됨)"
+                        )
+                );
+            }
+
             return;
         }
 
@@ -603,6 +687,10 @@ public class MainActivity extends Activity implements SensorEventListener {
                             eventPhotoFileName
                     );
 
+            runOnUiThread(() ->
+                    cameraText.setText("카메라 : 촬영 중...")
+            );
+
             android.hardware.camera2.CaptureRequest.Builder builder =
                     cameraDevice.createCaptureRequest(
                             android.hardware.camera2.CameraDevice
@@ -614,21 +702,66 @@ public class MainActivity extends Activity implements SensorEventListener {
             );
 
             builder.set(
-                    android.hardware.camera2.CaptureRequest
-                            .CONTROL_AF_MODE,
+                    android.hardware.camera2.CaptureRequest.CONTROL_MODE,
+                    android.hardware.camera2.CameraMetadata.CONTROL_MODE_AUTO
+            );
+
+            builder.set(
+                    android.hardware.camera2.CaptureRequest.CONTROL_AF_MODE,
                     android.hardware.camera2.CaptureRequest
                             .CONTROL_AF_MODE_CONTINUOUS_PICTURE
             );
 
+            builder.set(
+                    android.hardware.camera2.CaptureRequest.CONTROL_AE_MODE,
+                    android.hardware.camera2.CaptureRequest
+                            .CONTROL_AE_MODE_ON
+            );
+
             cameraSession.capture(
                     builder.build(),
-                    null,
+                    new android.hardware.camera2.CameraCaptureSession
+                            .CaptureCallback() {
+
+                        @Override
+                        public void onCaptureCompleted(
+                                android.hardware.camera2.CameraCaptureSession session,
+                                android.hardware.camera2.CaptureRequest request,
+                                android.hardware.camera2.TotalCaptureResult result
+                        ) {
+                            runOnUiThread(() ->
+                                    cameraText.setText(
+                                            "카메라 : 사진 처리 중..."
+                                    )
+                            );
+                        }
+
+                        @Override
+                        public void onCaptureFailed(
+                                android.hardware.camera2.CameraCaptureSession session,
+                                android.hardware.camera2.CaptureRequest request,
+                                android.hardware.camera2.CaptureFailure failure
+                        ) {
+                            runOnUiThread(() ->
+                                    cameraText.setText(
+                                            "카메라 : 촬영 실패"
+                                    )
+                            );
+                        }
+                    },
                     cameraHandler
             );
 
         } catch (Exception e) {
+
             eventPhotoFileName = null;
             photoCaptureTarget = null;
+
+            runOnUiThread(() ->
+                    cameraText.setText(
+                            "카메라 : 촬영 오류"
+                    )
+            );
         }
     }
 
@@ -811,8 +944,10 @@ public class MainActivity extends Activity implements SensorEventListener {
                     grantResults[0] ==
                             android.content.pm.PackageManager.PERMISSION_GRANTED
             ) {
+                cameraText.setText("카메라 : 권한 허용됨");
                 openEventCamera();
             } else {
+                cameraText.setText("카메라 : 권한 거부됨");
                 android.widget.Toast.makeText(
                         this,
                         "사진 자동 촬영을 사용하려면 카메라 권한이 필요합니다.",
