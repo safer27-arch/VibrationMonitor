@@ -62,6 +62,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     private String eventPhotoFileName = null;
 
     private EditText thresholdInput;
+    private EditText emailInput;
     private VibrationGraph graph;
 
     private boolean measuring = false;
@@ -219,6 +220,55 @@ public class MainActivity extends Activity implements SensorEventListener {
             }
         });
 
+        TextView emailLabel = createValueText("알람 수신 이메일");
+
+        emailInput = new EditText(this);
+        emailInput.setText(
+                getSharedPreferences(
+                        "VibrationSettings",
+                        MODE_PRIVATE
+                ).getString(
+                        "notify_email",
+                        ""
+                )
+        );
+        emailInput.setHint("예: name@gmail.com");
+        emailInput.setTextSize(18);
+        emailInput.setInputType(
+                android.text.InputType.TYPE_CLASS_TEXT |
+                android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS
+        );
+
+        Button emailSaveButton = new Button(this);
+        emailSaveButton.setText("이메일 저장");
+
+        emailSaveButton.setOnClickListener(v -> {
+
+            String email =
+                    emailInput.getText()
+                            .toString()
+                            .trim();
+
+            getSharedPreferences(
+                    "VibrationSettings",
+                    MODE_PRIVATE
+            )
+            .edit()
+            .putString(
+                    "notify_email",
+                    email
+            )
+            .apply();
+
+            android.widget.Toast.makeText(
+                    this,
+                    email.isEmpty()
+                            ? "이메일 주소가 비어 있습니다."
+                            : "알람 이메일 저장 완료",
+                    android.widget.Toast.LENGTH_SHORT
+            ).show();
+        });
+
         Button startButton = new Button(this);
         startButton.setText("측정 시작");
 
@@ -291,6 +341,10 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(thresholdLabel);
         root.addView(thresholdInput);
         root.addView(specSaveButton);
+
+        root.addView(emailLabel);
+        root.addView(emailInput);
+        root.addView(emailSaveButton);
         root.addView(alarmText);
         root.addView(eventText);
         root.addView(startButton);
@@ -1289,6 +1343,11 @@ public class MainActivity extends Activity implements SensorEventListener {
                     java.io.File csvFile = CsvSaver.save(this, csvValues);
                     saveEventLocation(csvFile);
 
+                    openEventEmail(
+                            csvFile,
+                            new java.util.ArrayList<>(eventBuffer)
+                    );
+
                 eventText.setText(
                         "이벤트 : " + eventCount +
                         "회\n최근 이벤트 데이터 : " +
@@ -1317,6 +1376,163 @@ public class MainActivity extends Activity implements SensorEventListener {
                         Color.rgb(0, 130, 0)
                 );
             }
+        }
+    }
+
+    private void openEventEmail(
+            java.io.File csvFile,
+            java.util.ArrayList<DataPoint> data
+    ) {
+
+        String email =
+                getSharedPreferences(
+                        "VibrationSettings",
+                        MODE_PRIVATE
+                ).getString(
+                        "notify_email",
+                        ""
+                );
+
+        if (email == null || email.trim().isEmpty()) {
+            return;
+        }
+
+        if (data == null || data.isEmpty()) {
+            return;
+        }
+
+        double sumValue = 0.0;
+        double max = 0.0;
+        double min = Double.MAX_VALUE;
+
+        for (DataPoint dp : data) {
+
+            sumValue += dp.value;
+
+            if (dp.value > max) {
+                max = dp.value;
+            }
+
+            if (dp.value < min) {
+                min = dp.value;
+            }
+        }
+
+        double avg =
+                sumValue / data.size();
+
+        double spec =
+                getThreshold();
+
+        double over =
+                Math.max(
+                        0.0,
+                        max - spec
+                );
+
+        String time =
+                new java.text.SimpleDateFormat(
+                        "yyyy-MM-dd HH:mm:ss",
+                        Locale.US
+                ).format(
+                        new java.util.Date()
+                );
+
+        String gps =
+                eventHasLocation
+                        ? String.format(
+                                Locale.US,
+                                "%.6f, %.6f",
+                                eventLatitude,
+                                eventLongitude
+                        )
+                        : "기록 없음";
+
+        String photo =
+                eventPhotoFileName == null
+                        ? "없음"
+                        : eventPhotoFileName;
+
+        String csv =
+                csvFile == null
+                        ? "없음"
+                        : csvFile.getName();
+
+        String subject =
+                String.format(
+                        Locale.US,
+                        "[Vibration Alert] SPEC %.2f 초과 / MAX %.3f",
+                        spec,
+                        max
+                );
+
+        String body =
+                "Vibration Monitor 이벤트 알람\n\n" +
+                "발생시간 : " + time + "\n" +
+                String.format(
+                        Locale.US,
+                        "MAX : %.3f m/s²\n",
+                        max
+                ) +
+                String.format(
+                        Locale.US,
+                        "AVG : %.3f m/s²\n",
+                        avg
+                ) +
+                String.format(
+                        Locale.US,
+                        "MIN : %.3f m/s²\n",
+                        min
+                ) +
+                String.format(
+                        Locale.US,
+                        "SPEC : %.3f m/s²\n",
+                        spec
+                ) +
+                String.format(
+                        Locale.US,
+                        "SPEC 초과량 : %.3f m/s²\n",
+                        over
+                ) +
+                "GPS : " + gps + "\n" +
+                "CSV : " + csv + "\n" +
+                "사진 : " + photo + "\n";
+
+        try {
+
+            android.content.Intent intent =
+                    new android.content.Intent(
+                            android.content.Intent.ACTION_SENDTO
+                    );
+
+            intent.setData(
+                    android.net.Uri.parse(
+                            "mailto:" +
+                            android.net.Uri.encode(
+                                    email.trim()
+                            )
+                    )
+            );
+
+            intent.putExtra(
+                    android.content.Intent.EXTRA_SUBJECT,
+                    subject
+            );
+
+            intent.putExtra(
+                    android.content.Intent.EXTRA_TEXT,
+                    body
+            );
+
+            startActivity(intent);
+
+        } catch (Exception e) {
+
+            android.widget.Toast.makeText(
+                    this,
+                    "사용 가능한 이메일 앱을 찾지 못했습니다.",
+                    android.widget.Toast.LENGTH_LONG
+            ).show();
         }
     }
 
