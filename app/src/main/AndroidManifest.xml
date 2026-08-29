@@ -21,6 +21,9 @@
             android:name=".HistoryActivity"
             android:screenOrientation="portrait"
             android:exported="false" />
+            <activity
+            android:name=".StatisticsActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

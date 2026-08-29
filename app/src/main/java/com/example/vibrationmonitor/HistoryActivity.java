@@ -95,6 +95,18 @@ public class HistoryActivity extends Activity {
             }
         }
 
+        Button statsButton = new Button(this);
+        statsButton.setText("통계 대시보드");
+        statsButton.setOnClickListener(v -> {
+            android.content.Intent intent =
+                    new android.content.Intent(
+                            HistoryActivity.this,
+                            StatisticsActivity.class);
+            intent.putExtra("spec", spec);
+            startActivity(intent);
+        });
+        root.addView(statsButton);
+
         Button close = new Button(this);
         close.setText("돌아가기");
         close.setOnClickListener(v -> finish());
