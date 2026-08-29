@@ -163,6 +163,15 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         Button csvButton = new Button(this);
         csvButton.setText("저장된 CSV 파일");
+
+        Button historyButton = new Button(this);
+        historyButton.setText("진동 이력 관리");
+        historyButton.setOnClickListener(v -> {
+            android.content.Intent intent =
+                    new android.content.Intent(this, HistoryActivity.class);
+            intent.putExtra("spec", getThreshold());
+            startActivity(intent);
+        });
         csvButton.setOnClickListener(v -> {
             java.io.File dir = new java.io.File(getExternalFilesDir(null), "VibrationData");
             java.io.File[] files = dir.listFiles();
@@ -218,6 +227,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(stopButton);
         root.addView(resetButton);
         root.addView(csvButton);
+        root.addView(historyButton);
         root.setPadding(root.getPaddingLeft(), root.getPaddingTop(), root.getPaddingRight(), (int)(100 * getResources().getDisplayMetrics().density));
 
         scroll.addView(root);
