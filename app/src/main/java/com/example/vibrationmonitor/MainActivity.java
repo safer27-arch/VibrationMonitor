@@ -667,7 +667,7 @@ public class MainActivity extends Activity implements SensorEventListener {
                 String.format(java.util.Locale.US,
                         "\n최소값 : %.3f m/s²", min) +
                 String.format(java.util.Locale.US,
-                        "\nSPEC : %.2f m/s²", threshold)
+                        "\nSPEC : %.2f m/s²", getThreshold())
         );
 
         info.setTextSize(17);
