@@ -128,7 +128,8 @@ public class MainActivity extends Activity implements SensorEventListener {
                 createValueText("SPEC / Threshold");
 
         thresholdInput = new EditText(this);
-        thresholdInput.setText("2.0");
+        float savedSpec = getSharedPreferences("VibrationSettings", MODE_PRIVATE).getFloat("spec", 2.0f);
+        thresholdInput.setText(String.valueOf(savedSpec));
         thresholdInput.setTextSize(20);
         thresholdInput.setHint("예: 2.0");
 
@@ -152,6 +153,32 @@ public class MainActivity extends Activity implements SensorEventListener {
         eventText.setGravity(Gravity.CENTER);
         eventText.setTextColor(Color.DKGRAY);
         eventText.setPadding(10, 10, 10, 20);
+
+        Button specSaveButton = new Button(this);
+        specSaveButton.setText("SPEC 저장 / 적용");
+        specSaveButton.setOnClickListener(v -> {
+            try {
+                double value = Double.parseDouble(thresholdInput.getText().toString().trim());
+                if (value <= 0) throw new Exception();
+                getSharedPreferences("VibrationSettings", MODE_PRIVATE)
+                        .edit().putFloat("spec", (float)value).apply();
+                graph.setThreshold(value);
+                android.widget.Toast.makeText(
+                        this,
+                        String.format(Locale.US, "SPEC %.2f m/s² 저장 완료", value),
+                        android.widget.Toast.LENGTH_SHORT
+                ).show();
+            } catch (Exception e) {
+                float oldValue = getSharedPreferences("VibrationSettings", MODE_PRIVATE)
+                        .getFloat("spec", 2.0f);
+                thresholdInput.setText(String.valueOf(oldValue));
+                android.widget.Toast.makeText(
+                        this,
+                        "0보다 큰 숫자를 입력하세요.",
+                        android.widget.Toast.LENGTH_SHORT
+                ).show();
+            }
+        });
 
         Button startButton = new Button(this);
         startButton.setText("측정 시작");
@@ -222,6 +249,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(minText);
         root.addView(thresholdLabel);
         root.addView(thresholdInput);
+        root.addView(specSaveButton);
         root.addView(alarmText);
         root.addView(eventText);
         root.addView(startButton);
@@ -539,7 +567,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         } catch (Exception e) {
 
-            return 2.0;
+            return getSharedPreferences("VibrationSettings", MODE_PRIVATE)
+                    .getFloat("spec", 2.0f);
         }
     }
 
