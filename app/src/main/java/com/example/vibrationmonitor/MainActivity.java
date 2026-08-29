@@ -35,6 +35,18 @@ public class MainActivity extends Activity implements SensorEventListener {
     private TextView minText;
     private TextView alarmText;
     private TextView eventText;
+    private TextView locationText;
+
+    private android.location.LocationManager locationManager;
+    private android.location.LocationListener locationListener;
+
+    private double currentLatitude = 0.0;
+    private double currentLongitude = 0.0;
+    private boolean hasLocation = false;
+
+    private double eventLatitude = 0.0;
+    private double eventLongitude = 0.0;
+    private boolean eventHasLocation = false;
 
     private EditText thresholdInput;
     private VibrationGraph graph;
@@ -99,6 +111,13 @@ public class MainActivity extends Activity implements SensorEventListener {
         sensorStatus.setTextSize(16);
         sensorStatus.setGravity(Gravity.CENTER);
         sensorStatus.setPadding(0, 5, 0, 10);
+
+        locationText = new TextView(this);
+        locationText.setText("GPS : 위치 확인 대기 중");
+        locationText.setTextSize(15);
+        locationText.setGravity(Gravity.CENTER);
+        locationText.setTextColor(Color.DKGRAY);
+        locationText.setPadding(0, 4, 0, 10);
 
         // 실시간 그래프
         graph = new VibrationGraph(this);
@@ -231,12 +250,13 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         root.addView(title);
         root.addView(sensorStatus);
+        root.addView(locationText);
 
         // 그래프가 제목 바로 아래 보이도록 순서 조정
         root.removeView(graph);
         root.addView(
                 graph,
-                2,
+                3,
                 new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT,
                         600
@@ -261,6 +281,194 @@ public class MainActivity extends Activity implements SensorEventListener {
 
         scroll.addView(root);
         setContentView(scroll);
+
+        setupLocation();
+    }
+
+    private void setupLocation() {
+
+        locationManager =
+                (android.location.LocationManager)
+                        getSystemService(LOCATION_SERVICE);
+
+        locationListener =
+                new android.location.LocationListener() {
+                    @Override
+                    public void onLocationChanged(android.location.Location location) {
+                        updateLocation(location);
+                    }
+                };
+
+        if (
+                android.os.Build.VERSION.SDK_INT >= 23 &&
+                checkSelfPermission(
+                        android.Manifest.permission.ACCESS_FINE_LOCATION
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                    new String[] {
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                    },
+                    1001
+            );
+
+            locationText.setText("GPS : 위치 권한 허용 필요");
+        } else {
+            startLocationUpdates();
+        }
+    }
+
+    private void startLocationUpdates() {
+
+        if (locationManager == null) return;
+
+        if (
+                android.os.Build.VERSION.SDK_INT >= 23 &&
+                checkSelfPermission(
+                        android.Manifest.permission.ACCESS_FINE_LOCATION
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return;
+        }
+
+        try {
+            android.location.Location last = null;
+
+            if (locationManager.isProviderEnabled(
+                    android.location.LocationManager.GPS_PROVIDER)) {
+
+                locationManager.requestLocationUpdates(
+                        android.location.LocationManager.GPS_PROVIDER,
+                        1000L,
+                        0.5f,
+                        locationListener
+                );
+
+                last = locationManager.getLastKnownLocation(
+                        android.location.LocationManager.GPS_PROVIDER
+                );
+            }
+
+            if (locationManager.isProviderEnabled(
+                    android.location.LocationManager.NETWORK_PROVIDER)) {
+
+                locationManager.requestLocationUpdates(
+                        android.location.LocationManager.NETWORK_PROVIDER,
+                        1000L,
+                        0.5f,
+                        locationListener
+                );
+
+                if (last == null) {
+                    last = locationManager.getLastKnownLocation(
+                            android.location.LocationManager.NETWORK_PROVIDER
+                    );
+                }
+            }
+
+            if (last != null) {
+                updateLocation(last);
+            } else {
+                locationText.setText("GPS : 위치 신호 검색 중...");
+            }
+
+        } catch (Exception e) {
+            locationText.setText("GPS : 위치 확인 오류");
+        }
+    }
+
+    private void updateLocation(android.location.Location location) {
+
+        if (location == null) return;
+
+        currentLatitude = location.getLatitude();
+        currentLongitude = location.getLongitude();
+        hasLocation = true;
+
+        locationText.setText(
+                String.format(
+                        Locale.US,
+                        "GPS : %.6f, %.6f",
+                        currentLatitude,
+                        currentLongitude
+                )
+        );
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+            int requestCode,
+            String[] permissions,
+            int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(
+                requestCode,
+                permissions,
+                grantResults
+        );
+
+        if (requestCode == 1001) {
+            if (
+                    grantResults.length > 0 &&
+                    grantResults[0] ==
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                startLocationUpdates();
+            } else {
+                locationText.setText("GPS : 위치 권한 거부됨");
+            }
+        }
+    }
+
+    private void saveEventLocation(java.io.File csvFile) {
+
+        if (csvFile == null) return;
+
+        java.io.File meta =
+                new java.io.File(
+                        csvFile.getParentFile(),
+                        csvFile.getName().replace(".csv", ".gps")
+                );
+
+        try (
+                java.io.PrintWriter out =
+                        new java.io.PrintWriter(
+                                new java.io.FileWriter(meta)
+                        )
+        ) {
+            out.println(
+                    String.format(
+                            Locale.US,
+                            "spec=%.3f",
+                            getThreshold()
+                    )
+            );
+
+            if (eventHasLocation) {
+                out.println(
+                        String.format(
+                                Locale.US,
+                                "latitude=%.8f",
+                                eventLatitude
+                        )
+                );
+                out.println(
+                        String.format(
+                                Locale.US,
+                                "longitude=%.8f",
+                                eventLongitude
+                        )
+                );
+            } else {
+                out.println("latitude=");
+                out.println("longitude=");
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     private TextView createValueText(String text) {
@@ -476,8 +684,12 @@ public class MainActivity extends Activity implements SensorEventListener {
         ) {
 
             eventRecording = true;
-                lastThresholdExceededTime = System.currentTimeMillis();
             eventStartMs = now;
+            lastThresholdExceededTime = now;
+
+            eventLatitude = currentLatitude;
+            eventLongitude = currentLongitude;
+            eventHasLocation = hasLocation;
 
             eventBuffer.clear();
 
@@ -509,11 +721,20 @@ public class MainActivity extends Activity implements SensorEventListener {
          */
         if (eventRecording) {
 
-            eventBuffer.add(point);
-            if (point.value > getThreshold()) lastThresholdExceededTime = now;
+            if (
+                    eventBuffer.isEmpty() ||
+                    eventBuffer.get(eventBuffer.size() - 1).timeMs
+                            != point.timeMs
+            ) {
+                eventBuffer.add(point);
+            }
+
+            if (point.value >= threshold) {
+                lastThresholdExceededTime = now;
+            }
 
             long elapsed =
-                    now - eventStartMs;
+                    now - lastThresholdExceededTime;
 
             if (elapsed >= 3000) {
 
@@ -522,6 +743,7 @@ public class MainActivity extends Activity implements SensorEventListener {
                     java.util.ArrayList<Float> csvValues = new java.util.ArrayList<>();
                     for (DataPoint dp : eventBuffer) csvValues.add((float) dp.value);
                     java.io.File csvFile = CsvSaver.save(this, csvValues);
+                    saveEventLocation(csvFile);
 
                 eventText.setText(
                         "이벤트 : " + eventCount +
