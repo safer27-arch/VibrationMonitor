@@ -53,6 +53,7 @@ public class MainActivity extends Activity implements SensorEventListener {
     private final ArrayList<DataPoint> eventBuffer = new ArrayList<>();
 
     private boolean eventRecording = false;
+    private long lastThresholdExceededTime = 0L;
 
     private long eventStartMs = 0;
     private int eventCount = 0;
@@ -447,6 +448,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         ) {
 
             eventRecording = true;
+                lastThresholdExceededTime = System.currentTimeMillis();
             eventStartMs = now;
 
             eventBuffer.clear();
@@ -480,6 +482,7 @@ public class MainActivity extends Activity implements SensorEventListener {
         if (eventRecording) {
 
             eventBuffer.add(point);
+            if (point.value > getThreshold()) lastThresholdExceededTime = now;
 
             long elapsed =
                     now - eventStartMs;
