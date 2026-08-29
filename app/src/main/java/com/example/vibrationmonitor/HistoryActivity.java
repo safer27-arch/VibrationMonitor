@@ -361,9 +361,13 @@ public class HistoryActivity extends Activity {
 
         box.addView(graph);
 
+        ScrollView detailScroll = new ScrollView(this);
+        detailScroll.setFillViewport(true);
+        detailScroll.addView(box);
+
         new AlertDialog.Builder(this)
                 .setTitle("이벤트 상세 그래프")
-                .setView(box)
+                .setView(detailScroll)
                 .setPositiveButton("닫기", null)
                 .show();
     }
