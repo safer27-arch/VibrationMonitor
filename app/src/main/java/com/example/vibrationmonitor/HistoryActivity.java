@@ -79,19 +79,29 @@ public class HistoryActivity extends Activity {
             listTitle.setTextSize(20);
             root.addView(listTitle);
 
+            int eventNo = events.size();
+
             for (EventStat e : events) {
                 Button b = new Button(this);
 
                 b.setText(
-                    e.dateText +
+                    "이벤트 #" + eventNo +
+                    "\n" + e.dateText +
                     String.format(Locale.US,
-                        "\nMAX %.3f   AVG %.3f   초과 +%.3f m/s²",
-                        e.max, e.avg, e.over)
+                        "\nMAX %.3f   AVG %.3f   MIN %.3f" +
+                        "\nSPEC %.2f   초과 +%.3f m/s²" +
+                        "\n데이터 %,d개",
+                        e.max, e.avg, e.min,
+                        spec, e.over, e.values.size())
                 );
 
                 b.setAllCaps(false);
+                b.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
+                b.setPadding(dp(14), dp(10), dp(14), dp(10));
                 b.setOnClickListener(v -> showDetail(e));
                 root.addView(b);
+
+                eventNo--;
             }
         }
 
