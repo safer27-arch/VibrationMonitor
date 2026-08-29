@@ -230,8 +230,8 @@ public class HistoryActivity extends Activity {
                 getResources().getDisplayMetrics().density);
     }
 
-    static class DetailView extends View {
 
+    static class DetailView extends View {
         private final ArrayList<Double> values;
         private final double spec;
 
@@ -240,15 +240,12 @@ public class HistoryActivity extends Activity {
         private final Paint grid = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-        DetailView(android.content.Context c,
-                   ArrayList<Double> values,
-                   double spec) {
+        DetailView(android.content.Context c, ArrayList<Double> values, double spec) {
             super(c);
-
             this.values = values;
             this.spec = spec;
 
-            line.setColor(Color.rgb(20,110,200));
+            line.setColor(Color.rgb(20, 110, 200));
             line.setStrokeWidth(3f);
             line.setStyle(Paint.Style.STROKE);
 
@@ -259,59 +256,62 @@ public class HistoryActivity extends Activity {
             grid.setStrokeWidth(1f);
 
             text.setColor(Color.DKGRAY);
-            text.setTextSize(28f);
+            text.setTextSize(24f);
         }
 
         @Override
         protected void onDraw(Canvas c) {
             super.onDraw(c);
-
             if (values.isEmpty()) return;
 
-            float w = getWidth();
-            float h = getHeight();
+            float left = 72f;
+            float right = getWidth() - 18f;
+            float top = 28f;
+            float bottom = getHeight() - 52f;
 
             double max = spec;
-
-            for (double v : values)
+            for (double v : values) {
                 if (v > max) max = v;
-
+            }
             max *= 1.15;
             if (max <= 0) max = 1;
 
-            for (int i=1; i<5; i++) {
-                float y = h * i / 5f;
-                c.drawLine(0,y,w,y,grid);
+            for (int i = 0; i <= 4; i++) {
+                float y = top + (bottom - top) * i / 4f;
+                c.drawLine(left, y, right, y, grid);
+
+                double label = max * (4 - i) / 4.0;
+                c.drawText(String.format(Locale.US, "%.1f", label),
+                        5, y + 8, text);
             }
 
-            float sy = (float)(h - spec/max*h);
-            c.drawLine(0,sy,w,sy,specPaint);
-            c.drawText(
-                    String.format(Locale.US,
-                            "SPEC %.2f", spec),
-                    8, Math.max(30,sy-8), text);
+            float sy = (float)(bottom - spec / max * (bottom - top));
+            c.drawLine(left, sy, right, sy, specPaint);
+            c.drawText(String.format(Locale.US, "SPEC %.2f", spec),
+                    left + 8, Math.max(top + 24, sy - 8), text);
 
             Path path = new Path();
 
-            for (int i=0; i<values.size(); i++) {
+            for (int i = 0; i < values.size(); i++) {
+                float x = values.size() == 1
+                        ? left
+                        : left + (right - left) * i / (values.size() - 1f);
 
-                float x = values.size()==1
-                        ? 0
-                        : w*i/(values.size()-1f);
+                float y = (float)(bottom - values.get(i) / max * (bottom - top));
 
-                float y = (float)(
-                        h - values.get(i)/max*h);
-
-                if (i==0) path.moveTo(x,y);
-                else path.lineTo(x,y);
+                if (i == 0) path.moveTo(x, y);
+                else path.lineTo(x, y);
             }
 
-            c.drawPath(path,line);
+            c.drawPath(path, line);
+
+            c.drawText("-3s", left, getHeight() - 12, text);
+            c.drawText("0s", (left + right) / 2f - 14, getHeight() - 12, text);
+            c.drawText("+3s", right - 48, getHeight() - 12, text);
         }
     }
 
     static class TrendView extends View {
-
         private final ArrayList<EventStat> events;
         private final double spec;
 
@@ -319,75 +319,91 @@ public class HistoryActivity extends Activity {
         private final Paint specPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint point = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint grid = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
 
-        TrendView(android.content.Context c,
-                  ArrayList<EventStat> events,
-                  double spec) {
+        TrendView(android.content.Context c, ArrayList<EventStat> events, double spec) {
             super(c);
-
             this.events = events;
             this.spec = spec;
 
-            line.setColor(Color.rgb(20,110,200));
+            line.setColor(Color.rgb(20, 110, 200));
             line.setStrokeWidth(4f);
             line.setStyle(Paint.Style.STROKE);
 
             specPaint.setColor(Color.RED);
             specPaint.setStrokeWidth(3f);
 
-            point.setColor(Color.rgb(20,110,200));
+            point.setColor(Color.rgb(20, 110, 200));
 
             grid.setColor(Color.LTGRAY);
             grid.setStrokeWidth(1f);
+
+            text.setColor(Color.DKGRAY);
+            text.setTextSize(22f);
         }
 
         @Override
         protected void onDraw(Canvas c) {
             super.onDraw(c);
-
             if (events.isEmpty()) return;
 
-            float w = getWidth();
-            float h = getHeight();
+            float left = 72f;
+            float right = getWidth() - 18f;
+            float top = 42f;
+            float bottom = getHeight() - 74f;
 
             double scaleMax = spec;
-
-            for (EventStat e : events)
+            for (EventStat e : events) {
                 if (e.max > scaleMax) scaleMax = e.max;
+            }
 
             scaleMax *= 1.15;
             if (scaleMax <= 0) scaleMax = 1;
 
-            for (int i=1; i<5; i++) {
-                float y = h*i/5f;
-                c.drawLine(0,y,w,y,grid);
+            for (int i = 0; i <= 4; i++) {
+                float y = top + (bottom - top) * i / 4f;
+                c.drawLine(left, y, right, y, grid);
+
+                double label = scaleMax * (4 - i) / 4.0;
+                c.drawText(String.format(Locale.US, "%.1f", label),
+                        5, y + 8, text);
             }
 
-            float sy = (float)(h - spec/scaleMax*h);
-            c.drawLine(0,sy,w,sy,specPaint);
+            float sy = (float)(bottom - spec / scaleMax * (bottom - top));
+            c.drawLine(left, sy, right, sy, specPaint);
+            c.drawText(String.format(Locale.US, "SPEC %.2f", spec),
+                    left + 8, Math.max(top + 24, sy - 6), text);
 
             Path path = new Path();
 
-            // 오래된 이벤트 → 최신 이벤트 순으로 그림
-            for (int i=0; i<events.size(); i++) {
+            for (int i = 0; i < events.size(); i++) {
+                EventStat e = events.get(events.size() - 1 - i);
 
-                EventStat e =
-                        events.get(events.size()-1-i);
+                float x = events.size() == 1
+                        ? (left + right) / 2f
+                        : left + (right - left) * i / (events.size() - 1f);
 
-                float x = events.size()==1
-                        ? w/2
-                        : w*i/(events.size()-1f);
+                float y = (float)(bottom - e.max / scaleMax * (bottom - top));
 
-                float y = (float)(
-                        h - e.max/scaleMax*h);
+                if (i == 0) path.moveTo(x, y);
+                else path.lineTo(x, y);
 
-                if (i==0) path.moveTo(x,y);
-                else path.lineTo(x,y);
+                c.drawCircle(x, y, 7f, point);
 
-                c.drawCircle(x,y,6f,point);
+                c.drawText(String.format(Locale.US, "%.2f", e.max),
+                        x - 24, y - 12, text);
+
+                String t = e.dateText.length() >= 16
+                        ? e.dateText.substring(11, 16)
+                        : e.dateText;
+
+                c.save();
+                c.rotate(-35, x, bottom + 48);
+                c.drawText(t, x - 18, bottom + 48, text);
+                c.restore();
             }
 
-            c.drawPath(path,line);
+            c.drawPath(path, line);
         }
     }
 }
