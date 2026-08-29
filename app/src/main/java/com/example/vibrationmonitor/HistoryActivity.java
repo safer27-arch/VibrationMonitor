@@ -24,6 +24,8 @@ public class HistoryActivity extends Activity {
         double latitude;
         double longitude;
         boolean hasLocation;
+
+        File photoFile;
     }
 
     @Override
@@ -233,6 +235,25 @@ public class HistoryActivity extends Activity {
                         lon = Double.parseDouble(value);
                     }
                 }
+
+                if (line.startsWith("photo=")) {
+
+                    String value =
+                            line.substring("photo=".length()).trim();
+
+                    if (!value.isEmpty()) {
+
+                        File candidate =
+                                new File(
+                                        e.file.getParentFile(),
+                                        value
+                                );
+
+                        if (candidate.exists()) {
+                            e.photoFile = candidate;
+                        }
+                    }
+                }
             }
 
         } catch (Exception ignored) {
@@ -296,6 +317,39 @@ public class HistoryActivity extends Activity {
 
         info.setTextSize(16);
         box.addView(info);
+
+        if (e.photoFile != null && e.photoFile.exists()) {
+
+            TextView photoTitle = new TextView(this);
+            photoTitle.setText("\n이벤트 자동 촬영 사진");
+            photoTitle.setTextSize(17);
+            box.addView(photoTitle);
+
+            android.widget.ImageView photoView =
+                    new android.widget.ImageView(this);
+
+            android.graphics.Bitmap bitmap =
+                    android.graphics.BitmapFactory.decodeFile(
+                            e.photoFile.getAbsolutePath()
+                    );
+
+            if (bitmap != null) {
+                photoView.setImageBitmap(bitmap);
+                photoView.setAdjustViewBounds(true);
+                photoView.setScaleType(
+                        android.widget.ImageView.ScaleType.CENTER_CROP
+                );
+
+                photoView.setLayoutParams(
+                        new LinearLayout.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                dp(240)
+                        )
+                );
+
+                box.addView(photoView);
+            }
+        }
 
         DetailView graph =
                 new DetailView(this, e.values, spec);

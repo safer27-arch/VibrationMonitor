@@ -48,6 +48,18 @@ public class MainActivity extends Activity implements SensorEventListener {
     private double eventLongitude = 0.0;
     private boolean eventHasLocation = false;
 
+    // 자동 사진 촬영
+    private android.hardware.camera2.CameraDevice cameraDevice;
+    private android.hardware.camera2.CameraCaptureSession cameraSession;
+    private android.media.ImageReader imageReader;
+    private android.os.HandlerThread cameraThread;
+    private android.os.Handler cameraHandler;
+    private String cameraId;
+    private boolean cameraReady = false;
+
+    private java.io.File photoCaptureTarget;
+    private String eventPhotoFileName = null;
+
     private EditText thresholdInput;
     private VibrationGraph graph;
 
@@ -283,6 +295,376 @@ public class MainActivity extends Activity implements SensorEventListener {
         setContentView(scroll);
 
         setupLocation();
+        setupCamera();
+    }
+
+    private void setupCamera() {
+
+        if (
+                android.os.Build.VERSION.SDK_INT >= 23 &&
+                checkSelfPermission(
+                        android.Manifest.permission.CAMERA
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                    new String[] {
+                            android.Manifest.permission.CAMERA
+                    },
+                    1002
+            );
+            return;
+        }
+
+        openEventCamera();
+    }
+
+    private void startCameraThread() {
+
+        if (cameraThread != null) return;
+
+        cameraThread =
+                new android.os.HandlerThread(
+                        "VibrationCamera"
+                );
+
+        cameraThread.start();
+
+        cameraHandler =
+                new android.os.Handler(
+                        cameraThread.getLooper()
+                );
+    }
+
+    private void openEventCamera() {
+
+        if (cameraDevice != null) return;
+
+        startCameraThread();
+
+        try {
+            android.hardware.camera2.CameraManager manager =
+                    (android.hardware.camera2.CameraManager)
+                            getSystemService(CAMERA_SERVICE);
+
+            cameraId = null;
+
+            for (String id : manager.getCameraIdList()) {
+
+                android.hardware.camera2.CameraCharacteristics c =
+                        manager.getCameraCharacteristics(id);
+
+                Integer facing =
+                        c.get(
+                                android.hardware.camera2.CameraCharacteristics
+                                        .LENS_FACING
+                        );
+
+                if (
+                        facing != null &&
+                        facing ==
+                                android.hardware.camera2.CameraCharacteristics
+                                        .LENS_FACING_BACK
+                ) {
+                    cameraId = id;
+                    break;
+                }
+            }
+
+            if (cameraId == null) {
+                return;
+            }
+
+            android.hardware.camera2.CameraCharacteristics c =
+                    manager.getCameraCharacteristics(cameraId);
+
+            android.hardware.camera2.params.StreamConfigurationMap map =
+                    c.get(
+                            android.hardware.camera2.CameraCharacteristics
+                                    .SCALER_STREAM_CONFIGURATION_MAP
+                    );
+
+            android.util.Size chosen =
+                    new android.util.Size(1280, 720);
+
+            if (map != null) {
+
+                android.util.Size[] sizes =
+                        map.getOutputSizes(
+                                android.graphics.ImageFormat.JPEG
+                        );
+
+                if (sizes != null && sizes.length > 0) {
+
+                    chosen = sizes[0];
+
+                    long targetArea = 1280L * 720L;
+                    long bestDiff = Long.MAX_VALUE;
+
+                    for (android.util.Size size : sizes) {
+
+                        long area =
+                                (long) size.getWidth() *
+                                (long) size.getHeight();
+
+                        long diff =
+                                Math.abs(area - targetArea);
+
+                        if (diff < bestDiff) {
+                            chosen = size;
+                            bestDiff = diff;
+                        }
+                    }
+                }
+            }
+
+            if (imageReader != null) {
+                imageReader.close();
+            }
+
+            imageReader =
+                    android.media.ImageReader.newInstance(
+                            chosen.getWidth(),
+                            chosen.getHeight(),
+                            android.graphics.ImageFormat.JPEG,
+                            2
+                    );
+
+            imageReader.setOnImageAvailableListener(
+                    reader -> {
+
+                        android.media.Image image = null;
+
+                        try {
+                            image = reader.acquireLatestImage();
+
+                            if (
+                                    image == null ||
+                                    photoCaptureTarget == null
+                            ) {
+                                return;
+                            }
+
+                            java.nio.ByteBuffer buffer =
+                                    image.getPlanes()[0]
+                                            .getBuffer();
+
+                            byte[] bytes =
+                                    new byte[buffer.remaining()];
+
+                            buffer.get(bytes);
+
+                            try (
+                                    java.io.FileOutputStream out =
+                                            new java.io.FileOutputStream(
+                                                    photoCaptureTarget
+                                            )
+                            ) {
+                                out.write(bytes);
+                            }
+
+                        } catch (Exception ignored) {
+
+                        } finally {
+
+                            if (image != null) {
+                                image.close();
+                            }
+
+                            photoCaptureTarget = null;
+                        }
+                    },
+                    cameraHandler
+            );
+
+            if (
+                    android.os.Build.VERSION.SDK_INT >= 23 &&
+                    checkSelfPermission(
+                            android.Manifest.permission.CAMERA
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                return;
+            }
+
+            manager.openCamera(
+                    cameraId,
+                    new android.hardware.camera2.CameraDevice.StateCallback() {
+
+                        @Override
+                        public void onOpened(
+                                android.hardware.camera2.CameraDevice camera
+                        ) {
+                            cameraDevice = camera;
+
+                            try {
+                                java.util.ArrayList<android.view.Surface>
+                                        surfaces =
+                                        new java.util.ArrayList<>();
+
+                                surfaces.add(
+                                        imageReader.getSurface()
+                                );
+
+                                camera.createCaptureSession(
+                                        surfaces,
+                                        new android.hardware.camera2
+                                                .CameraCaptureSession
+                                                .StateCallback() {
+
+                                            @Override
+                                            public void onConfigured(
+                                                    android.hardware.camera2
+                                                            .CameraCaptureSession
+                                                            session
+                                            ) {
+                                                cameraSession = session;
+                                                cameraReady = true;
+                                            }
+
+                                            @Override
+                                            public void onConfigureFailed(
+                                                    android.hardware.camera2
+                                                            .CameraCaptureSession
+                                                            session
+                                            ) {
+                                                cameraReady = false;
+                                            }
+                                        },
+                                        cameraHandler
+                                );
+
+                            } catch (Exception ignored) {
+                                cameraReady = false;
+                            }
+                        }
+
+                        @Override
+                        public void onDisconnected(
+                                android.hardware.camera2.CameraDevice camera
+                        ) {
+                            cameraReady = false;
+                            camera.close();
+                            cameraDevice = null;
+                        }
+
+                        @Override
+                        public void onError(
+                                android.hardware.camera2.CameraDevice camera,
+                                int error
+                        ) {
+                            cameraReady = false;
+                            camera.close();
+                            cameraDevice = null;
+                        }
+                    },
+                    cameraHandler
+            );
+
+        } catch (Exception ignored) {
+            cameraReady = false;
+        }
+    }
+
+    private void captureEventPhoto() {
+
+        eventPhotoFileName = null;
+
+        if (
+                !cameraReady ||
+                cameraDevice == null ||
+                cameraSession == null ||
+                imageReader == null
+        ) {
+            return;
+        }
+
+        try {
+
+            java.io.File dir =
+                    new java.io.File(
+                            getExternalFilesDir(null),
+                            "VibrationData"
+                    );
+
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+
+            eventPhotoFileName =
+                    "photo_" +
+                    new java.text.SimpleDateFormat(
+                            "yyyyMMdd_HHmmss_SSS",
+                            Locale.US
+                    ).format(new java.util.Date()) +
+                    ".jpg";
+
+            photoCaptureTarget =
+                    new java.io.File(
+                            dir,
+                            eventPhotoFileName
+                    );
+
+            android.hardware.camera2.CaptureRequest.Builder builder =
+                    cameraDevice.createCaptureRequest(
+                            android.hardware.camera2.CameraDevice
+                                    .TEMPLATE_STILL_CAPTURE
+                    );
+
+            builder.addTarget(
+                    imageReader.getSurface()
+            );
+
+            builder.set(
+                    android.hardware.camera2.CaptureRequest
+                            .CONTROL_AF_MODE,
+                    android.hardware.camera2.CaptureRequest
+                            .CONTROL_AF_MODE_CONTINUOUS_PICTURE
+            );
+
+            cameraSession.capture(
+                    builder.build(),
+                    null,
+                    cameraHandler
+            );
+
+        } catch (Exception e) {
+            eventPhotoFileName = null;
+            photoCaptureTarget = null;
+        }
+    }
+
+    private void closeEventCamera() {
+
+        cameraReady = false;
+
+        try {
+            if (cameraSession != null) {
+                cameraSession.close();
+            }
+        } catch (Exception ignored) {}
+
+        cameraSession = null;
+
+        try {
+            if (cameraDevice != null) {
+                cameraDevice.close();
+            }
+        } catch (Exception ignored) {}
+
+        cameraDevice = null;
+
+        try {
+            if (imageReader != null) {
+                imageReader.close();
+            }
+        } catch (Exception ignored) {}
+
+        imageReader = null;
+
+        if (cameraThread != null) {
+            cameraThread.quitSafely();
+            cameraThread = null;
+            cameraHandler = null;
+        }
     }
 
     private void setupLocation() {
@@ -422,6 +804,22 @@ public class MainActivity extends Activity implements SensorEventListener {
                 locationText.setText("GPS : 위치 권한 거부됨");
             }
         }
+
+        if (requestCode == 1002) {
+            if (
+                    grantResults.length > 0 &&
+                    grantResults[0] ==
+                            android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                openEventCamera();
+            } else {
+                android.widget.Toast.makeText(
+                        this,
+                        "사진 자동 촬영을 사용하려면 카메라 권한이 필요합니다.",
+                        android.widget.Toast.LENGTH_LONG
+                ).show();
+            }
+        }
     }
 
     private void saveEventLocation(java.io.File csvFile) {
@@ -467,6 +865,14 @@ public class MainActivity extends Activity implements SensorEventListener {
                 out.println("latitude=");
                 out.println("longitude=");
             }
+
+            out.println(
+                    "photo=" +
+                    (eventPhotoFileName == null
+                            ? ""
+                            : eventPhotoFileName)
+            );
+
         } catch (Exception ignored) {
         }
     }
@@ -691,6 +1097,9 @@ public class MainActivity extends Activity implements SensorEventListener {
             eventLongitude = currentLongitude;
             eventHasLocation = hasLocation;
 
+            // SPEC 최초 초과 순간 자동 사진 촬영
+            captureEventPhoto();
+
             eventBuffer.clear();
 
             /*
@@ -810,6 +1219,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 
             sensorManager.unregisterListener(this);
         }
+
+        closeEventCamera();
     }
 
     @Override
@@ -827,6 +1238,16 @@ public class MainActivity extends Activity implements SensorEventListener {
                     accelerometer,
                     SensorManager.SENSOR_DELAY_GAME
             );
+        }
+
+        if (
+                android.os.Build.VERSION.SDK_INT < 23 ||
+                checkSelfPermission(
+                        android.Manifest.permission.CAMERA
+                ) ==
+                        android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            openEventCamera();
         }
     }
 
