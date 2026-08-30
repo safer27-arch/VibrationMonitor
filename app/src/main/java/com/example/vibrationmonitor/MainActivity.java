@@ -1456,42 +1456,131 @@ public class MainActivity extends Activity implements SensorEventListener {
                         "개 확보 완료"
                 );
 
-                                // ===== Telegram event auto alert =====
+                                // ===== Telegram event bundle: 상세정보 + 사진 + CSV =====
                 android.content.SharedPreferences tg =
                         getSharedPreferences("TelegramSettings", MODE_PRIVATE);
-                String tgToken = tg.getString("bot_token", "").trim();
-                String tgChatId = tg.getString("chat_id", "").trim();
+
+                String tgToken =
+                        tg.getString("bot_token", "").trim();
+                String tgChatId =
+                        tg.getString("chat_id", "").trim();
 
                 if (!tgToken.isEmpty() && !tgChatId.isEmpty()) {
-                    String tgMessage =
-                            "🚨 Vibration SPEC 초과 알람\n"
-                            + "이벤트 : " + eventCount + "회\n"
-                            + "데이터 수 : " + eventBuffer.size() + "개\n"
-                            + "이벤트 기록이 완료되었습니다.";
 
-                    TelegramSender.sendMessage(
+                    java.util.ArrayList<DataPoint> telegramData =
+                            new java.util.ArrayList<>(eventBuffer);
+
+                    double tgSum = 0.0;
+                    double tgMax = 0.0;
+                    double tgMin = Double.MAX_VALUE;
+
+                    for (DataPoint dp : telegramData) {
+                        tgSum += dp.value;
+                        if (dp.value > tgMax) tgMax = dp.value;
+                        if (dp.value < tgMin) tgMin = dp.value;
+                    }
+
+                    double tgAvg =
+                            telegramData.isEmpty()
+                                    ? 0.0
+                                    : tgSum / telegramData.size();
+
+                    if (tgMin == Double.MAX_VALUE) {
+                        tgMin = 0.0;
+                    }
+
+                    double tgSpec = getThreshold();
+                    double tgOver =
+                            Math.max(0.0, tgMax - tgSpec);
+
+                    String tgTime =
+                            new java.text.SimpleDateFormat(
+                                    "yyyy-MM-dd HH:mm:ss",
+                                    Locale.US
+                            ).format(new java.util.Date());
+
+                    String tgGps =
+                            eventHasLocation
+                                    ? String.format(
+                                            Locale.US,
+                                            "%.6f, %.6f",
+                                            eventLatitude,
+                                            eventLongitude
+                                    )
+                                    : "기록 없음";
+
+                    String tgCaption =
+                            "🚨 Vibration SPEC 초과 알람\n\n" +
+                            "이벤트 : " + eventCount + "회\n" +
+                            "발생시간 : " + tgTime + "\n" +
+                            String.format(
+                                    Locale.US,
+                                    "MAX : %.3f m/s²\n",
+                                    tgMax
+                            ) +
+                            String.format(
+                                    Locale.US,
+                                    "AVG : %.3f m/s²\n",
+                                    tgAvg
+                            ) +
+                            String.format(
+                                    Locale.US,
+                                    "MIN : %.3f m/s²\n",
+                                    tgMin
+                            ) +
+                            String.format(
+                                    Locale.US,
+                                    "SPEC : %.3f m/s²\n",
+                                    tgSpec
+                            ) +
+                            String.format(
+                                    Locale.US,
+                                    "SPEC 초과량 : %.3f m/s²\n",
+                                    tgOver
+                            ) +
+                            "GPS : " + tgGps + "\n" +
+                            "데이터 수 : " + telegramData.size() + "개";
+
+                    java.io.File tgPhotoFile = null;
+
+                    if (
+                            eventPhotoFileName != null &&
+                            csvFile != null &&
+                            csvFile.getParentFile() != null
+                    ) {
+                        tgPhotoFile =
+                                new java.io.File(
+                                        csvFile.getParentFile(),
+                                        eventPhotoFileName
+                                );
+                    }
+
+                    TelegramSender.sendEventBundle(
                             tgToken,
                             tgChatId,
-                            tgMessage,
-                            (success, message) -> runOnUiThread(() -> {
-                                if (success) {
-                                    android.widget.Toast.makeText(
-                                            this,
-                                            "Telegram 이벤트 알림 전송 성공",
-                                            android.widget.Toast.LENGTH_SHORT
-                                    ).show();
-                                } else {
-                                    android.widget.Toast.makeText(
-                                            this,
-                                            "Telegram 이벤트 알림 실패: " + message,
-                                            android.widget.Toast.LENGTH_LONG
-                                    ).show();
-                                }
-                            })
+                            tgCaption,
+                            tgPhotoFile,
+                            csvFile,
+                            (success, message) ->
+                                    runOnUiThread(() -> {
+                                        if (success) {
+                                            android.widget.Toast.makeText(
+                                                    this,
+                                                    "Telegram 사진 + 상세정보 + CSV 전송 성공",
+                                                    android.widget.Toast.LENGTH_SHORT
+                                            ).show();
+                                        } else {
+                                            android.widget.Toast.makeText(
+                                                    this,
+                                                    "Telegram 이벤트 묶음 전송 실패: " + message,
+                                                    android.widget.Toast.LENGTH_LONG
+                                            ).show();
+                                        }
+                                    })
                     );
                 }
 
-alarmText.setText(
+                alarmText.setText(
                         "상태 : 이벤트 기록 완료"
                 );
 
