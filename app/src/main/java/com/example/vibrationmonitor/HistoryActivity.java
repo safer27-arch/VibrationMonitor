@@ -363,7 +363,25 @@ public class HistoryActivity extends Activity {
 
         ScrollView detailScroll = new ScrollView(this);
         detailScroll.setFillViewport(true);
-        detailScroll.addView(box);
+
+        box.setLayoutParams(
+                new ScrollView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+        );
+
+        graph.setMinimumWidth(
+                getResources().getDisplayMetrics().widthPixels - dp(80)
+        );
+
+        detailScroll.addView(
+                box,
+                new ScrollView.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+        );
 
         new AlertDialog.Builder(this)
                 .setTitle("이벤트 상세 그래프")
