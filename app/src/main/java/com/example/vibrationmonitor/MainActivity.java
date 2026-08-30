@@ -1456,7 +1456,42 @@ public class MainActivity extends Activity implements SensorEventListener {
                         "개 확보 완료"
                 );
 
-                alarmText.setText(
+                                // ===== Telegram event auto alert =====
+                android.content.SharedPreferences tg =
+                        getSharedPreferences("TelegramSettings", MODE_PRIVATE);
+                String tgToken = tg.getString("bot_token", "").trim();
+                String tgChatId = tg.getString("chat_id", "").trim();
+
+                if (!tgToken.isEmpty() && !tgChatId.isEmpty()) {
+                    String tgMessage =
+                            "🚨 Vibration SPEC 초과 알람\n"
+                            + "이벤트 : " + eventCount + "회\n"
+                            + "데이터 수 : " + eventBuffer.size() + "개\n"
+                            + "이벤트 기록이 완료되었습니다.";
+
+                    TelegramSender.sendMessage(
+                            tgToken,
+                            tgChatId,
+                            tgMessage,
+                            (success, message) -> runOnUiThread(() -> {
+                                if (success) {
+                                    android.widget.Toast.makeText(
+                                            this,
+                                            "Telegram 이벤트 알림 전송 성공",
+                                            android.widget.Toast.LENGTH_SHORT
+                                    ).show();
+                                } else {
+                                    android.widget.Toast.makeText(
+                                            this,
+                                            "Telegram 이벤트 알림 실패: " + message,
+                                            android.widget.Toast.LENGTH_LONG
+                                    ).show();
+                                }
+                            })
+                    );
+                }
+
+alarmText.setText(
                         "상태 : 이벤트 기록 완료"
                 );
 
