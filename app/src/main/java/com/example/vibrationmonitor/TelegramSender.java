@@ -27,6 +27,7 @@ public class TelegramSender {
             String chatId,
             String caption,
             java.io.File photoFile,
+            java.io.File graphFile,
             java.io.File csvFile,
             Callback callback
     ) {
@@ -60,6 +61,24 @@ public class TelegramSender {
                     firstCode = sendTextInternal(token, chatId, caption);
                 }
 
+                int graphCode = 200;
+
+                if (graphFile != null &&
+                        graphFile.exists() &&
+                        graphFile.length() > 0) {
+
+                    graphCode = sendMultipart(
+                            token,
+                            "sendPhoto",
+                            chatId,
+                            "photo",
+                            graphFile,
+                            "image/png",
+                            "caption",
+                            "📈 같은 이벤트의 진동 상세 그래프"
+                    );
+                }
+
                 int csvCode = 200;
                 if (csvFile != null && csvFile.exists() && csvFile.length() > 0) {
                     csvCode = sendMultipart(
@@ -76,11 +95,14 @@ public class TelegramSender {
 
                 boolean ok =
                         firstCode >= 200 && firstCode < 300 &&
+                        graphCode >= 200 && graphCode < 300 &&
                         csvCode >= 200 && csvCode < 300;
 
                 callback.onResult(
                         ok,
-                        "PHOTO/TEXT HTTP " + firstCode + ", CSV HTTP " + csvCode
+                        "PHOTO/TEXT HTTP " + firstCode +
+                        ", GRAPH HTTP " + graphCode +
+                        ", CSV HTTP " + csvCode
                 );
 
             } catch (Exception e) {

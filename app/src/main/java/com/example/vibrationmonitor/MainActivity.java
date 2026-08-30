@@ -1555,11 +1555,18 @@ public class MainActivity extends Activity implements SensorEventListener {
                                 );
                     }
 
+                    java.io.File tgGraphFile =
+                            createTelegramEventGraph(
+                                    csvFile,
+                                    telegramData
+                            );
+
                     TelegramSender.sendEventBundle(
                             tgToken,
                             tgChatId,
                             tgCaption,
                             tgPhotoFile,
+                            tgGraphFile,
                             csvFile,
                             (success, message) ->
                                     runOnUiThread(() -> {
@@ -1601,6 +1608,128 @@ public class MainActivity extends Activity implements SensorEventListener {
                         Color.rgb(0, 130, 0)
                 );
             }
+        }
+    }
+
+
+    private java.io.File createTelegramEventGraph(
+            java.io.File csvFile,
+            java.util.ArrayList<DataPoint> data
+    ) {
+        if (csvFile == null || data == null || data.isEmpty()) return null;
+
+        try {
+            final int width = 1200;
+            final int height = 700;
+            final int left = 100;
+            final int right = 1150;
+            final int top = 70;
+            final int bottom = 610;
+
+            android.graphics.Bitmap bitmap =
+                    android.graphics.Bitmap.createBitmap(
+                            width, height,
+                            android.graphics.Bitmap.Config.ARGB_8888
+                    );
+
+            android.graphics.Canvas canvas =
+                    new android.graphics.Canvas(bitmap);
+            canvas.drawColor(android.graphics.Color.WHITE);
+
+            android.graphics.Paint gridPaint =
+                    new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            gridPaint.setColor(android.graphics.Color.LTGRAY);
+            gridPaint.setStrokeWidth(2f);
+
+            android.graphics.Paint graphPaint =
+                    new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            graphPaint.setColor(android.graphics.Color.rgb(0,100,220));
+            graphPaint.setStrokeWidth(5f);
+            graphPaint.setStyle(android.graphics.Paint.Style.STROKE);
+
+            android.graphics.Paint specPaint =
+                    new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            specPaint.setColor(android.graphics.Color.RED);
+            specPaint.setStrokeWidth(4f);
+            specPaint.setTextSize(28f);
+
+            android.graphics.Paint textPaint =
+                    new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            textPaint.setColor(android.graphics.Color.DKGRAY);
+            textPaint.setTextSize(30f);
+
+            double spec = getThreshold();
+            double maxY = Math.max(3.0, spec * 1.5);
+
+            for (DataPoint dp : data) {
+                if (dp.value > maxY) maxY = dp.value * 1.15;
+            }
+
+            for (int i = 0; i <= 4; i++) {
+                float y = top + (bottom - top) * i / 4f;
+                canvas.drawLine(left, y, right, y, gridPaint);
+
+                double label = maxY * (4 - i) / 4.0;
+                canvas.drawText(
+                        String.format(Locale.US, "%.1f", label),
+                        10, y + 10, textPaint
+                );
+            }
+
+            float specY =
+                    bottom - (float)(spec / maxY * (bottom - top));
+
+            canvas.drawLine(left, specY, right, specY, specPaint);
+            canvas.drawText(
+                    String.format(Locale.US, "SPEC %.2f", spec),
+                    left + 10,
+                    Math.max(top + 30, specY - 10),
+                    specPaint
+            );
+
+            android.graphics.Path path = new android.graphics.Path();
+            int n = data.size();
+
+            for (int i = 0; i < n; i++) {
+                float x = left +
+                        (right - left) *
+                        (n <= 1 ? 0f : i / (float)(n - 1));
+
+                float y = bottom -
+                        (float)(data.get(i).value / maxY * (bottom - top));
+
+                if (i == 0) path.moveTo(x, y);
+                else path.lineTo(x, y);
+            }
+
+            canvas.drawPath(path, graphPaint);
+
+            canvas.drawText("-3s", left, 665, textPaint);
+            canvas.drawText("0s", 590, 665, textPaint);
+            canvas.drawText("+3s", 1080, 665, textPaint);
+            canvas.drawText("Vibration Event Graph", left, 40, textPaint);
+
+            java.io.File graphFile =
+                    new java.io.File(
+                            csvFile.getParentFile(),
+                            csvFile.getName().replace(".csv", "_graph.png")
+                    );
+
+            try (java.io.FileOutputStream out =
+                         new java.io.FileOutputStream(graphFile)) {
+                bitmap.compress(
+                        android.graphics.Bitmap.CompressFormat.PNG,
+                        100,
+                        out
+                );
+                out.flush();
+            }
+
+            bitmap.recycle();
+            return graphFile;
+
+        } catch (Exception e) {
+            return null;
         }
     }
 
