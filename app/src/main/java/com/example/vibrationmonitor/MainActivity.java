@@ -345,6 +345,107 @@ public class MainActivity extends Activity implements SensorEventListener {
         root.addView(emailLabel);
         root.addView(emailInput);
         root.addView(emailSaveButton);
+
+        // ===== Telegram 설정 =====
+        android.widget.TextView telegramTitle = new android.widget.TextView(this);
+        telegramTitle.setText("Telegram 자동 알림");
+        telegramTitle.setTextSize(18f);
+        telegramTitle.setPadding(0, 24, 0, 8);
+
+        android.widget.EditText telegramTokenInput = new android.widget.EditText(this);
+        telegramTokenInput.setHint("Telegram Bot Token");
+        telegramTokenInput.setSingleLine(true);
+        telegramTokenInput.setInputType(
+                android.text.InputType.TYPE_CLASS_TEXT |
+                android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+
+        android.widget.EditText telegramChatIdInput = new android.widget.EditText(this);
+        telegramChatIdInput.setHint("Telegram Chat ID");
+        telegramChatIdInput.setSingleLine(true);
+
+        android.widget.Button telegramSaveButton = new android.widget.Button(this);
+        telegramSaveButton.setText("Telegram 저장");
+
+        android.widget.Button telegramTestButton = new android.widget.Button(this);
+        telegramTestButton.setText("Telegram 테스트 전송");
+
+        android.widget.TextView telegramStatus = new android.widget.TextView(this);
+        telegramStatus.setText("Telegram : 설정 필요");
+        telegramStatus.setPadding(0, 6, 0, 12);
+
+        android.content.SharedPreferences telegramPrefs =
+                getSharedPreferences("TelegramSettings", MODE_PRIVATE);
+
+        telegramTokenInput.setText(telegramPrefs.getString("bot_token", ""));
+        telegramChatIdInput.setText(telegramPrefs.getString("chat_id", ""));
+
+        if (!telegramTokenInput.getText().toString().trim().isEmpty()
+                && !telegramChatIdInput.getText().toString().trim().isEmpty()) {
+            telegramStatus.setText("Telegram : 설정 저장됨");
+        }
+
+        telegramSaveButton.setOnClickListener(v -> {
+            String token = telegramTokenInput.getText().toString().trim();
+            String chatId = telegramChatIdInput.getText().toString().trim();
+
+            if (token.isEmpty() || chatId.isEmpty()) {
+                android.widget.Toast.makeText(this,
+                        "Bot Token과 Chat ID를 입력해주세요.",
+                        android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            telegramPrefs.edit()
+                    .putString("bot_token", token)
+                    .putString("chat_id", chatId)
+                    .apply();
+
+            telegramStatus.setText("Telegram : 설정 저장됨");
+            android.widget.Toast.makeText(this,
+                    "Telegram 설정을 저장했습니다.",
+                    android.widget.Toast.LENGTH_SHORT).show();
+        });
+
+        telegramTestButton.setOnClickListener(v -> {
+            String token = telegramTokenInput.getText().toString().trim();
+            String chatId = telegramChatIdInput.getText().toString().trim();
+
+            if (token.isEmpty() || chatId.isEmpty()) {
+                android.widget.Toast.makeText(this,
+                        "먼저 Bot Token과 Chat ID를 입력해주세요.",
+                        android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            telegramStatus.setText("Telegram : 테스트 전송 중...");
+
+            TelegramSender.sendMessage(
+                    token,
+                    chatId,
+                    "✅ Vibration Monitor 연결 테스트\nTelegram 자동 알림 연결이 정상입니다.",
+                    (success, message) -> runOnUiThread(() -> {
+                        if (success) {
+                            telegramStatus.setText("Telegram : 테스트 전송 성공");
+                            android.widget.Toast.makeText(this,
+                                    "Telegram 테스트 메시지 전송 성공",
+                                    android.widget.Toast.LENGTH_LONG).show();
+                        } else {
+                            telegramStatus.setText("Telegram : 전송 실패 (" + message + ")");
+                            android.widget.Toast.makeText(this,
+                                    "Telegram 전송 실패: " + message,
+                                    android.widget.Toast.LENGTH_LONG).show();
+                        }
+                    })
+            );
+        });
+
+        root.addView(telegramTitle);
+        root.addView(telegramTokenInput);
+        root.addView(telegramChatIdInput);
+        root.addView(telegramSaveButton);
+        root.addView(telegramTestButton);
+        root.addView(telegramStatus);
+
         root.addView(alarmText);
         root.addView(eventText);
         root.addView(startButton);
