@@ -63,6 +63,9 @@ public class MainActivity extends Activity implements SensorEventListener {
 
     private EditText thresholdInput;
     private EditText emailInput;
+    private android.widget.Spinner buildingSpinner;
+    private String selectedBuilding = "WA5";
+    private String eventBuilding = "WA5";
     private VibrationGraph graph;
 
     private boolean measuring = false;
@@ -139,6 +142,96 @@ public class MainActivity extends Activity implements SensorEventListener {
         cameraText.setGravity(Gravity.CENTER);
         cameraText.setTextColor(Color.DKGRAY);
         cameraText.setPadding(0, 2, 0, 10);
+
+        // 사용 건물 선택
+        TextView buildingLabel = new TextView(this);
+        buildingLabel.setText("사용 건물");
+        buildingLabel.setTextSize(18);
+        buildingLabel.setTextColor(Color.DKGRAY);
+        buildingLabel.setPadding(0, 12, 0, 4);
+
+        buildingSpinner = new android.widget.Spinner(this);
+
+        String[] buildings = {
+                "WA3",
+                "WA4",
+                "WA5",
+                "WA6",
+                "WA8",
+                "WA9"
+        };
+
+        android.widget.ArrayAdapter<String> buildingAdapter =
+                new android.widget.ArrayAdapter<>(
+                        this,
+                        android.R.layout.simple_spinner_item,
+                        buildings
+                );
+
+        buildingAdapter.setDropDownViewResource(
+                android.R.layout.simple_spinner_dropdown_item
+        );
+
+        buildingSpinner.setAdapter(buildingAdapter);
+
+        selectedBuilding =
+                getSharedPreferences(
+                        "VibrationSettings",
+                        MODE_PRIVATE
+                ).getString(
+                        "selected_building",
+                        "WA5"
+                );
+
+        int buildingIndex = 2;
+        for (int i = 0; i < buildings.length; i++) {
+            if (buildings[i].equals(selectedBuilding)) {
+                buildingIndex = i;
+                break;
+            }
+        }
+
+        buildingSpinner.setSelection(buildingIndex);
+
+        buildingSpinner.setOnItemSelectedListener(
+                new android.widget.AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(
+                            android.widget.AdapterView<?> parent,
+                            View view,
+                            int position,
+                            long id
+                    ) {
+                        selectedBuilding =
+                                parent.getItemAtPosition(position).toString();
+
+                        getSharedPreferences(
+                                "VibrationSettings",
+                                MODE_PRIVATE
+                        ).edit()
+                                .putString(
+                                        "selected_building",
+                                        selectedBuilding
+                                )
+                                .apply();
+                    }
+
+                    @Override
+                    public void onNothingSelected(
+                            android.widget.AdapterView<?> parent
+                    ) {
+                    }
+                }
+        );
+
+        root.addView(buildingLabel);
+        root.addView(
+                buildingSpinner,
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+        );
 
         // 실시간 그래프
         graph = new VibrationGraph(this);
@@ -1136,6 +1229,13 @@ public class MainActivity extends Activity implements SensorEventListener {
                     )
             );
 
+            out.println(
+                    "building=" +
+                    (eventBuilding == null
+                            ? "미지정"
+                            : eventBuilding)
+            );
+
             if (eventHasLocation) {
                 out.println(
                         String.format(
@@ -1386,6 +1486,11 @@ public class MainActivity extends Activity implements SensorEventListener {
             eventLatitude = currentLatitude;
             eventLongitude = currentLongitude;
             eventHasLocation = hasLocation;
+            eventBuilding =
+                    selectedBuilding == null ||
+                    selectedBuilding.trim().isEmpty()
+                            ? "미지정"
+                            : selectedBuilding.trim();
 
             // SPEC 최초 초과 순간 자동 사진 촬영
             captureEventPhoto();
@@ -1512,6 +1617,7 @@ public class MainActivity extends Activity implements SensorEventListener {
                     String tgCaption =
                             "🚨 Vibration SPEC 초과 알람\n\n" +
                             "이벤트 : " + eventCount + "회\n" +
+                            "건물 : " + eventBuilding + "\n" +
                             "발생시간 : " + tgTime + "\n" +
                             String.format(
                                     Locale.US,
