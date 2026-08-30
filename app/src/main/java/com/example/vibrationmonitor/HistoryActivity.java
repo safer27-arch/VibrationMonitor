@@ -20,6 +20,7 @@ public class HistoryActivity extends Activity {
         ArrayList<Double> values = new ArrayList<>();
         double avg, max, min, over;
         String dateText;
+        String building = "미지정";
 
         double latitude;
         double longitude;
@@ -218,6 +219,15 @@ public class HistoryActivity extends Activity {
 
                 line = line.trim();
 
+                if (line.startsWith("building=")) {
+                    String value =
+                            line.substring("building=".length()).trim();
+
+                    if (!value.isEmpty()) {
+                        e.building = value;
+                    }
+                }
+
                 if (line.startsWith("latitude=")) {
                     String value =
                             line.substring("latitude=".length()).trim();
@@ -296,6 +306,7 @@ public class HistoryActivity extends Activity {
         info.setText(
                 e.dateText +
                 "\n파일 : " + e.file.getName() +
+                "\n건물 : " + e.building +
                 "\n데이터 수 : " + e.values.size() + "개" +
                 String.format(Locale.US,
                         "\n평균값 : %.3f m/s²", e.avg) +
@@ -317,6 +328,32 @@ public class HistoryActivity extends Activity {
 
         info.setTextSize(16);
         box.addView(info);
+
+        if (
+                e.hasLocation &&
+                "WA5".equalsIgnoreCase(e.building)
+        ) {
+            TextView mapTitle = new TextView(this);
+            mapTitle.setText("\nLGES WA5 이벤트 위치");
+            mapTitle.setTextSize(17);
+            box.addView(mapTitle);
+
+            BuildingMapView mapView =
+                    new BuildingMapView(
+                            this,
+                            e.latitude,
+                            e.longitude
+                    );
+
+            mapView.setLayoutParams(
+                    new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            dp(230)
+                    )
+            );
+
+            box.addView(mapView);
+        }
 
         if (e.photoFile != null && e.photoFile.exists()) {
 
@@ -395,6 +432,227 @@ public class HistoryActivity extends Activity {
                 getResources().getDisplayMetrics().density);
     }
 
+
+
+    static class BuildingMapView extends View {
+
+        private final double latitude;
+        private final double longitude;
+
+        private final Paint borderPaint =
+                new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        private final Paint fillPaint =
+                new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        private final Paint pointPaint =
+                new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        private final Paint textPaint =
+                new Paint(Paint.ANTI_ALIAS_FLAG);
+
+        // WA5 네 모서리
+        // 1: 왼쪽 위
+        // 2: 오른쪽 위
+        // 3: 오른쪽 아래
+        // 4: 왼쪽 아래
+        private static final double LAT1 = 51.0245604;
+        private static final double LON1 = 16.8860644;
+
+        private static final double LAT2 = 51.0239081;
+        private static final double LON2 = 16.8896636;
+
+        private static final double LAT3 = 51.0230264;
+        private static final double LON3 = 16.8892264;
+
+        private static final double LAT4 = 51.0236584;
+        private static final double LON4 = 16.8856524;
+
+        BuildingMapView(
+                android.content.Context context,
+                double latitude,
+                double longitude
+        ) {
+            super(context);
+
+            this.latitude = latitude;
+            this.longitude = longitude;
+
+            borderPaint.setColor(Color.DKGRAY);
+            borderPaint.setStyle(Paint.Style.STROKE);
+            borderPaint.setStrokeWidth(5f);
+
+            fillPaint.setColor(Color.rgb(238, 242, 245));
+            fillPaint.setStyle(Paint.Style.FILL);
+
+            pointPaint.setColor(Color.RED);
+            pointPaint.setStyle(Paint.Style.FILL);
+
+            textPaint.setColor(Color.DKGRAY);
+            textPaint.setTextSize(32f);
+        }
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            super.onDraw(canvas);
+
+            float w = getWidth();
+            float h = getHeight();
+
+            float left = 55f;
+            float right = w - 55f;
+            float top = 45f;
+            float bottom = h - 55f;
+
+            canvas.drawRect(
+                    left,
+                    top,
+                    right,
+                    bottom,
+                    fillPaint
+            );
+
+            canvas.drawRect(
+                    left,
+                    top,
+                    right,
+                    bottom,
+                    borderPaint
+            );
+
+            canvas.drawText(
+                    "WA5",
+                    left + 12f,
+                    top + 36f,
+                    textPaint
+            );
+
+            // 위도/경도를 현장 기준 meter 좌표로 변환
+            double refLat =
+                    (LAT1 + LAT2 + LAT3 + LAT4) / 4.0;
+
+            double meterPerLat = 111320.0;
+            double meterPerLon =
+                    111320.0 *
+                    Math.cos(
+                            Math.toRadians(refLat)
+                    );
+
+            // 1번 모서리를 원점으로 설정
+            double bx =
+                    (longitude - LON1) *
+                    meterPerLon;
+
+            double by =
+                    (latitude - LAT1) *
+                    meterPerLat;
+
+            // 1 -> 2 : 건물 가로축
+            double ax =
+                    (LON2 - LON1) *
+                    meterPerLon;
+
+            double ay =
+                    (LAT2 - LAT1) *
+                    meterPerLat;
+
+            // 1 -> 4 : 건물 세로축
+            double cx =
+                    (LON4 - LON1) *
+                    meterPerLon;
+
+            double cy =
+                    (LAT4 - LAT1) *
+                    meterPerLat;
+
+            // 2x2 연립방정식으로 u/v 계산
+            double det =
+                    ax * cy -
+                    ay * cx;
+
+            double u = 0.5;
+            double v = 0.5;
+
+            if (Math.abs(det) > 0.000001) {
+
+                u =
+                        (bx * cy -
+                         by * cx) / det;
+
+                v =
+                        (ax * by -
+                         ay * bx) / det;
+            }
+
+            boolean inside =
+                    u >= 0.0 &&
+                    u <= 1.0 &&
+                    v >= 0.0 &&
+                    v <= 1.0;
+
+            // 화면 밖으로 점이 사라지지 않도록 제한
+            double drawU =
+                    Math.max(
+                            0.0,
+                            Math.min(1.0, u)
+                    );
+
+            double drawV =
+                    Math.max(
+                            0.0,
+                            Math.min(1.0, v)
+                    );
+
+            float px =
+                    (float)(
+                            left +
+                            drawU *
+                            (right - left)
+                    );
+
+            float py =
+                    (float)(
+                            top +
+                            drawV *
+                            (bottom - top)
+                    );
+
+            canvas.drawCircle(
+                    px,
+                    py,
+                    16f,
+                    pointPaint
+            );
+
+            Paint labelPaint =
+                    new Paint(Paint.ANTI_ALIAS_FLAG);
+
+            labelPaint.setColor(Color.RED);
+            labelPaint.setTextSize(28f);
+
+            canvas.drawText(
+                    "이벤트 위치",
+                    Math.min(px + 20f, right - 150f),
+                    Math.max(py - 15f, top + 70f),
+                    labelPaint
+            );
+
+            if (!inside) {
+                Paint warnPaint =
+                        new Paint(Paint.ANTI_ALIAS_FLAG);
+
+                warnPaint.setColor(Color.rgb(200, 100, 0));
+                warnPaint.setTextSize(25f);
+
+                canvas.drawText(
+                        "GPS 오차 또는 건물 범위 밖",
+                        left,
+                        h - 15f,
+                        warnPaint
+                );
+            }
+        }
+    }
 
     static class DetailView extends View {
         private final ArrayList<Double> values;
