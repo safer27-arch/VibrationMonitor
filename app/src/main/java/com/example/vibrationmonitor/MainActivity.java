@@ -1667,6 +1667,18 @@ public class MainActivity extends Activity implements SensorEventListener {
                                     telegramData
                             );
 
+                    final java.io.File tgMapFile =
+                            (eventHasLocation &&
+                             csvFile != null &&
+                             csvFile.getParentFile() != null)
+                            ? TelegramMapMaker.create(
+                                    csvFile.getParentFile(),
+                                    csvFile.getName().replace(".csv", ""),
+                                    eventLatitude,
+                                    eventLongitude
+                              )
+                            : null;
+
                     TelegramSender.sendEventBundle(
                             tgToken,
                             tgChatId,
@@ -1677,9 +1689,29 @@ public class MainActivity extends Activity implements SensorEventListener {
                             (success, message) ->
                                     runOnUiThread(() -> {
                                         if (success) {
+
+                                            if (tgMapFile != null) {
+                                                TelegramSender.sendMapPhoto(
+                                                        tgToken,
+                                                        tgChatId,
+                                                        tgMapFile,
+                                                        "📍 같은 이벤트의 LGES WA5 GPS 위치",
+                                                        (mapOk, mapMsg) ->
+                                                                runOnUiThread(() ->
+                                                                        android.widget.Toast.makeText(
+                                                                                this,
+                                                                                mapOk
+                                                                                        ? "Telegram 위치 맵 전송 성공"
+                                                                                        : "Telegram 위치 맵 전송 실패 : " + mapMsg,
+                                                                                android.widget.Toast.LENGTH_SHORT
+                                                                        ).show()
+                                                                )
+                                                );
+                                            }
+
                                             android.widget.Toast.makeText(
                                                     this,
-                                                    "Telegram 사진 + 상세정보 + CSV 전송 성공",
+                                                    "Telegram 이벤트 묶음 전송 성공",
                                                     android.widget.Toast.LENGTH_SHORT
                                             ).show();
                                         } else {

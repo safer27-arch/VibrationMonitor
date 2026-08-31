@@ -225,4 +225,36 @@ public class TelegramSender {
         out.write(value.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         out.writeBytes("\r\n");
     }
+
+    public static void sendMapPhoto(
+            String token,
+            String chatId,
+            java.io.File mapFile,
+            String caption,
+            Callback callback
+    ) {
+        new Thread(() -> {
+            try {
+                int code = sendMultipart(
+                        token,
+                        "sendPhoto",
+                        chatId,
+                        "photo",
+                        mapFile,
+                        "image/png",
+                        "caption",
+                        caption
+                );
+
+                callback.onResult(
+                        code >= 200 && code < 300,
+                        "MAP HTTP " + code
+                );
+
+            } catch (Exception e) {
+                callback.onResult(false, e.getMessage());
+            }
+        }).start();
+    }
+
 }
